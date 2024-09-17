@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intern Database Home Page</title>
+    <link rel="stylesheet" href="uploadpage.css">
+    <script>
+        function openModal() {
+            document.getElementById('detailsModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('detailsModal').style.display = 'none';
+        }
+    </script>
+</head>
+<body onload="fetchDetails()">
+    <div class="navbar">
+        <h1>NIPGR</h1>
+        <button onclick="openModal()">Enter Details</button>
+    </div>
+
+    <!-- Modal for Details Submission -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label for="dob">Date of Birth:</label>
+                <input type="date" id="dob">
+            </div>
+            <div class="form-group">
+                <label for="join-date">Date of Joining:</label>
+                <input type="date" id="join-date">
+            </div>
+            <div class="form-group">
+                <label for="duration">Duration of Internship (months):</label>
+                <input type="number" id="duration" placeholder="Enter duration in months">
+            </div>
+            <div class="form-group">
+                <label for="papers">Number of Papers Completed:</label>
+                <input type="number" id="papers" placeholder="Enter number of papers completed">
+            </div>
+            <div class="form-group">
+                <label for="file-upload">Upload File:</label>
+                <input type="file" id="file-upload" accept="*/*">
+            </div>
+            <button id="submit-btn" type="button">Submit</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="view-section">
+            <h2>Submitted Details:</h2>
+            <table id="details-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Date of Birth</th>
+                        <th>Date of Joining</th>
+                        <th>Duration (months)</th>
+                        <th>Papers Completed</th>
+                        <th>File</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7">No details available.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import necessary Firebase SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-storage.js";
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAmmEowr0gNSJD-iNIMCLgpC6UlE_0HX38",
+            authDomain: "intern-3acec.firebaseapp.com",
+            databaseURL: "https://intern-3acec-default-rtdb.firebaseio.com",
+            projectId: "intern-3acec",
+            storageBucket: "intern-3acec.appspot.com",
+            messagingSenderId: "740848704551",
+            appId: "1:740848704551:web:79e5bad1d6b8c5c2a9c202"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const storage = getStorage(app);
+
+        // Function to submit details
+        async function submitDetails() {
+            console.log("submit invoked");
+            const name = document.getElementById('name').value;
+            const dob = document.getElementById('dob').value;
+            const joinDate = document.getElementById('join-date').value;
+            const duration = document.getElementById('duration').value;
+            const papers = document.getElementById('papers').value;
+            const fileInput = document.getElementById('file-upload');
+            const file = fileInput.files[0];
+
+            let fileURL = '';
+
+            if (file) {
+                const fileStorageRef = storageRef(storage, 'interns/' + file.name);
+                try {
+                    // Upload the file
+                    await uploadBytes(fileStorageRef, file);
+                    // Get the file URL
+                    fileURL = await getDownloadURL(fileStorageRef);
+                } catch (error) {
+                    console.error("Error uploading file:", error);
+                }
+            }
+
+            const dataRef = push(ref(database, 'interns'));
+            set(dataRef, {
+                name: name,
+                dob: dob,
+                joinDate: joinDate,
+                duration: duration,
+                papers: papers,
+                fileURL: fileURL,
+                submitted_at: new Date().toISOString()
+            }).then(() => {
+                alert("Details submitted successfully!");
+                clearForm();
+                closeModal();
+                fetchDetails();  // Fetch and update the table after submission
+            }).catch((error) => {
+                console.error("Error submitting details:", error);
+            });
+        }
+
+        // Function to clear the form fields
+        function clearForm() {
+            document.getElementById('name').value = '';
+            document.getElementById('dob').value = '';
+            document.getElementById('join-date').value = '';
+            document.getElementById('duration').value = '';
+            document.getElementById('papers').value = '';
+            document.getElementById('file-upload').value = ''; // Clear file input
+        }
+
+        // Function to fetch details from Firebase and update the table
+        function fetchDetails() {
+            const tableBody = document.querySelector('#details-table tbody');
+            const internsRef = ref(database, 'interns');
+
+            onValue(internsRef, (snapshot) => {
+                tableBody.innerHTML = '';  // Clear existing table rows
+
+                snapshot.forEach((childSnapshot) => {
+                    const intern = childSnapshot.val();
+
+                    // Create a new row for each intern
+                    const row = `<tr>
+                        <td>${intern.name}</td>
+                        <td>${intern.dob}</td>
+                        <td>${intern.joinDate}</td>
+                        <td>${intern.duration}</td>
+                        <td>${intern.papers}</td>
+                        <td><a href="${intern.fileURL}" target="_blank">Download File</a></td>
+                    </tr>`;
+
+                    tableBody.innerHTML += row;  // Append the new row to the table
+                });
+
+                // If no data, show a placeholder
+                if (!snapshot.exists()) {
+                    tableBody.innerHTML = '<tr><td colspan="7">No details available.</td></tr>';
+                }
+            });
+        }
+
+        // Attach the submitDetails function to the submit button
+        document.getElementById('submit-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            submitDetails();
+        });
+
+        // Fetch and display details when the page loads
+        window.onload = fetchDetails;
+    </script>
+    
+</body>
+</html>
